@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PeakeCoin Poker</title>
+    <link rel="stylesheet" href="poker.css">
+</head>
+<body>
+    <div class="poker-container">
+        <h1>PeakeCoin Poker</h1>
+        <div id="wallet-section">
+            <button id="connect-wallet">Connect Wallet</button>
+            <span id="wallet-address"></span>
+            <span id="wallet-balance"></span>
+        </div>
+        <div id="game-section" style="display:none;">
+            <div id="table"></div>
+            <div id="player-controls"></div>
+            <div id="messages"></div>
+        </div>
+        <div id="start-section">
+            <label>Bet Amount (PEAKE): <input type="number" id="bet-amount" min="1" value="10"></label>
+            <button id="start-game">Start Game</button>
+        </div>
+    </div>
+    <script src="poker.js"></script>
+</body>
+</html>
