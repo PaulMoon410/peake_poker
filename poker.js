@@ -1,11 +1,11 @@
 // Poker game logic for PeakeCoin Poker
-// Assumes Hive Keychain is available for wallet connect and token transfers
+// Requires Hive Keychain for wallet connect and token transfers
 
-// Remove all wallet connect and Keychain logic for now
 let user = {
-    address: 'guest',
-    balance: 1000, // Give guest a starting balance for demo
-    token: 'PEK'
+    address: '',
+    balance: 0,
+    token: 'PEK', // Use PEK consistently
+    loggedIn: false
 };
 
 let betAmount = 10;
@@ -39,54 +39,90 @@ function renderCards(cards) {
 
 function updateWalletUI() {
     document.getElementById('wallet-address').textContent = user.address ? `Wallet: ${user.address}` : '';
-    document.getElementById('wallet-balance').textContent = user.address ? `Balance: ${user.balance} ${user.token}` : '';
+    document.getElementById('wallet-balance').textContent = user.address ? `Balance: ${user.balance} PEK` : '';
 }
 
 function showMessage(msg) {
     document.getElementById('messages').textContent = msg;
 }
 
-// Instantly connect as guest
-function connectWallet() {
-    showMessage('Playing as guest. No wallet required.');
-    updateWalletUI();
-    document.getElementById('game-section').style.display = '';
-    document.getElementById('start-section').style.display = '';
+async function connectWallet() {
+    if (!window.hive_keychain) {
+        showMessage('Hive Keychain extension is required! Please install it from https://hive-keychain.com and refresh this page.');
+        return;
+    }
+    const username = prompt('Enter your Hive username (the same as in your Hive Keychain extension):');
+    if (!username) {
+        showMessage('Username is required.');
+        return;
+    }
+    showMessage('Requesting signature from Hive Keychain... Please approve the popup and enter your Hive username if prompted.');
+    window.hive_keychain.requestSignBuffer(
+        username,
+        'Sign in to PeakeCoin Poker',
+        'Posting',
+        async function(response) {
+            if (response.success) {
+                user.address = username;
+                user.loggedIn = true;
+                await fetchBalance();
+                updateWalletUI();
+                showMessage('Wallet connected!');
+                document.getElementById('game-section').style.display = '';
+                document.getElementById('start-section').style.display = '';
+            } else {
+                showMessage('Hive Keychain sign-in failed or was rejected. Please try again.');
+            }
+        }
+    );
 }
 
 async function fetchBalance() {
-    // Only check PEK as the token symbol
     const url = 'https://api.hive-engine.com/rpc/contracts';
     const symbol = 'PEK';
+    const account = user.address ? user.address.toLowerCase() : '';
     const payload = {
         jsonrpc: '2.0',
-        method: 'findOne',
+        method: 'find',
         params: {
             contract: 'tokens',
             table: 'balances',
-            query: { account: user.address, symbol }
+            query: { account, symbol }
         },
         id: 1
     };
     try {
-        const r = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
+        const r = await fetch(url, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+            // Do NOT set headers at all!
+        });
         const data = await r.json();
-        user.balance = data.result && data.result.balance ? parseFloat(data.result.balance) : 0;
+        console.log('Hive Engine balance response:', data); // For debugging
+        if (data.result && Array.isArray(data.result) && data.result.length > 0 && data.result[0].balance) {
+            user.balance = parseFloat(data.result[0].balance);
+        } else {
+            user.balance = 0;
+            showMessage('No PEK balance found for this account.');
+        }
         user.token = symbol;
+        updateWalletUI();
     } catch (e) {
         user.balance = 0;
         user.token = symbol;
+        showMessage('Error fetching PEK balance.');
+        updateWalletUI();
     }
 }
 
 function startGame() {
     betAmount = parseFloat(document.getElementById('bet-amount').value);
-    if (!user.address) {
-        showMessage('Connect your wallet first!');
+    if (!user.loggedIn) {
+        showMessage('Connect your wallet with Hive Keychain first!');
         return;
     }
     if (user.balance < betAmount) {
-        showMessage('Insufficient PEAKE balance!');
+        showMessage('Insufficient PEK balance!');
         return;
     }
     // Lock bet (simulate by reducing balance)
@@ -111,7 +147,7 @@ function renderTable() {
     let pc = renderCards(gameState.player);
     let ac = renderCards(gameState.ai.map(_ => '🂠'));
     let comm = renderCards(gameState.community.slice(0, [0,3,4,5,5][gameState.stage]));
-    t.innerHTML = `<div>Your Hand: ${pc}</div><div>AI Hand: ${ac}</div><div>Community: ${comm}</div><div>Pot: ${gameState.pot} PEAKE</div>`;
+    t.innerHTML = `<div>Your Hand: ${pc}</div><div>AI Hand: ${ac}</div><div>Community: ${comm}</div><div>Pot: ${gameState.pot} PEK</div>`;
     renderControls();
 }
 
@@ -163,7 +199,7 @@ async function finishGame() {
     let ar = handRank(gameState.ai, gameState.community);
     let msg;
     if (pr > ar) {
-        msg = `You win! +${gameState.pot} PEAKE`;
+        msg = `You win! +${gameState.pot} PEK`;
         await sendPeakecoin(user.address, gameState.pot);
         await fetchBalance();
         updateWalletUI();
@@ -178,11 +214,9 @@ async function finishGame() {
     showMessage(msg);
     renderTable();
 }
-
 async function sendPeakecoin(to, amount) {
-    // Use Hive Keychain to send PEAKE
     if (!window.hive_keychain) {
-        alert('Hive Keychain required to send PEAKE!');
+        alert('Hive Keychain required to send PEK!');
         return;
     }
     return new Promise((resolve, reject) => {
@@ -194,13 +228,13 @@ async function sendPeakecoin(to, amount) {
                 contractName: 'tokens',
                 contractAction: 'transfer',
                 contractPayload: {
-                    symbol: 'PEAKE',
+                    symbol: 'PEK', // Use PEK consistently
                     to,
                     quantity: String(amount),
                     memo: 'Poker win!'
                 }
             }),
-            'Send PEAKE',
+            'Send PEK',
             r => {
                 if (r.success) resolve();
                 else reject(r.message);
